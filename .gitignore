@@ -2,4 +2,11 @@ bin/
 node_modules/
 dist/
 *.out
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# macOS
 .DS_Store

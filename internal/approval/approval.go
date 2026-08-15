@@ -87,7 +87,17 @@ func Compile[T any](s Spec[T], subject T) (Chain, error) {
 	return chain, nil
 }
 
+// Current returns the step awaiting a decision.
+//
+// A rejected chain is waiting on nobody, even though the steps after the
+// rejection are still Pending — they were never reached rather than skipped.
+// Without this, a rejected request would keep naming its next approver and
+// turn up in that person's queue.
 func (c Chain) Current() (int, Step, bool) {
+	if c.Rejected() {
+		return -1, Step{}, false
+	}
+
 	for i, s := range c {
 		if s.Status == StepStatusPending {
 			return i, s, true

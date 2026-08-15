@@ -418,5 +418,18 @@ var _ = Describe("Chain", func() {
 		It("leaves unreached steps pending", func() {
 			Expect(result[1].Status).To(Equal(approval.StepStatusPending))
 		})
+
+		// Those pending steps must not make the chain look like it is still
+		// waiting on somebody, or a dead request turns up in their queue.
+		It("is waiting on nobody", func() {
+			_, _, pending := result.Current()
+			Expect(pending).To(BeFalse())
+			Expect(result.IsCurrentApprover("trent")).To(BeFalse())
+		})
+
+		It("accepts no further decisions", func() {
+			_, err := result.Approve(1, "trent", "", now)
+			Expect(err).To(MatchError(approval.ErrNotCurrentStep))
+		})
 	})
 })
