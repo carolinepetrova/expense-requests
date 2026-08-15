@@ -1,6 +1,7 @@
 package expense
 
 import (
+	"slices"
 	"time"
 
 	"github.com/carolinepetrova/expense-requests/internal/approval"
@@ -65,15 +66,29 @@ type Filter struct {
 
 // View returns the projection of this request, for the store to persist
 // alongside the events.
+//
+// The two slices are never nil. A draft has no chain yet, and a nil slice
+// marshals to null rather than [], which every consumer then has to guard
+// against — so they are normalised here instead.
 func (r *Request) View() RequestView {
+	steps := r.Chain()
+	if steps == nil {
+		steps = approval.Chain{}
+	}
+
+	timeline := slices.Clone(r.Events)
+	if timeline == nil {
+		timeline = []model.Event{}
+	}
+
 	return RequestView{
 		ID:          r.ID,
 		RequesterID: r.RequesterID,
 		Status:      r.status,
 		ApproverID:  r.CurrentApproverID(),
 		Values:      r.Values,
-		Steps:       r.Chain(),
-		Timeline:    r.Events,
+		Steps:       steps,
+		Timeline:    timeline,
 		CreatedAt:   r.createdAt,
 		UpdatedAt:   r.updatedAt,
 	}
