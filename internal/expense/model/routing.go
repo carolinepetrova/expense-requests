@@ -34,13 +34,12 @@ type Subject struct {
 	Finance *user.User
 }
 
-// Spec is this domain's approval policy.
+// SingleStepSpec is the policy the exercise specifies.
 //
 // The two predicates are mutually exclusive, so exactly one step compiles: an
-// expense goes to the requester's manager, or, at $1,000 and above, to finance.
-// Making this multi-step is a change to this table alone — set the manager
-// rule's When to fire always and both stages apply.
-var Spec = approval.Spec[Subject]{
+// expense goes to the requester's manager, or, at $1,000 and above, straight
+// to finance instead.
+var SingleStepSpec = approval.Spec[Subject]{
 	Rules: []approval.Rule[Subject]{
 		{Name: RoleManager, When: amountUnder(ThresholdCents), Who: resolveManager},
 		{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
@@ -52,16 +51,41 @@ var Spec = approval.Spec[Subject]{
 	Fallback:     resolveFinance,
 	FallbackName: RoleFinance,
 
-	Requester: func(s Subject) approval.Approver {
-		return approval.Approver(s.Requester.ID)
+	Requester: requesterOf,
+}
+
+// MultiStepSpec routes large expenses through both stages: the manager always
+// sees it, and finance sees it as well once it reaches $1,000.
+//
+// This is the whole of multi-step approval. The manager rule fires always
+// rather than only below the threshold, so two stages apply instead of one —
+// no other file changes. Everything that makes a chain work is already in the
+// approval engine: ordering, never routing to the requester, falling back when
+// a stage cannot be staffed, and collapsing a stage that resolves to the same
+// person as the one before it.
+var MultiStepSpec = approval.Spec[Subject]{
+	Rules: []approval.Rule[Subject]{
+		{Name: RoleManager, When: always, Who: resolveManager},
+		{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
 	},
+
+	Fallback:     resolveFinance,
+	FallbackName: RoleFinance,
+
+	Requester: requesterOf,
 }
 
 // Route compiles the approval chain for a subject, or reports that the request
 // cannot be approved by anybody other than the person who raised it.
-func Route(s Subject) (approval.Chain, error) {
-	return approval.Compile(Spec, s)
+func Route(spec approval.Spec[Subject], s Subject) (approval.Chain, error) {
+	return approval.Compile(spec, s)
 }
+
+func requesterOf(s Subject) approval.Approver {
+	return approval.Approver(s.Requester.ID)
+}
+
+func always(Subject) bool { return true }
 
 func amountUnder(n int64) func(Subject) bool {
 	return func(s Subject) bool { return s.Values.AmountCents < n }

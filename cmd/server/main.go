@@ -9,6 +9,7 @@ import (
 
 	"github.com/carolinepetrova/expense-requests/internal/client"
 	expenseinit "github.com/carolinepetrova/expense-requests/internal/expense/init"
+	"github.com/carolinepetrova/expense-requests/internal/expense/model"
 	"github.com/carolinepetrova/expense-requests/internal/httpctrl"
 	"github.com/carolinepetrova/expense-requests/internal/seed"
 	"github.com/carolinepetrova/expense-requests/internal/user"
@@ -18,7 +19,17 @@ func main() {
 	dataDir := flag.String("data", "./data", "directory holding the seed JSON")
 	addr := flag.String("addr", ":8080", "listen address")
 	webOrigin := flag.String("web-origin", "http://localhost:5173", "origin allowed to call the API")
+	multiStep := flag.Bool("multi-step", false,
+		"route expenses of $1,000 or more through the manager and then finance, "+
+			"instead of straight to finance")
 	flag.Parse()
+
+	// The exercise asks for one approver; multi-step is the optional extension,
+	// and switching between them is a different rule table and nothing else.
+	spec := model.SingleStepSpec
+	if *multiStep {
+		spec = model.MultiStepSpec
+	}
 
 	// Seed data is read from disk rather than embedded so it can be edited and
 	// the server restarted, without a rebuild.
@@ -50,10 +61,16 @@ func main() {
 		seeded.Requests,
 		user.NewMemory(seeded.Users),
 		client.NewMemory(seeded.Clients),
+		spec,
 	)
 
-	log.Printf("listening on %s — %d users, %d clients, %d requests",
-		*addr, len(seeded.Users), len(seeded.Clients), len(seeded.Requests))
+	approvals := "single-step"
+	if *multiStep {
+		approvals = "multi-step"
+	}
+
+	log.Printf("listening on %s — %d users, %d clients, %d requests, %s approvals",
+		*addr, len(seeded.Users), len(seeded.Clients), len(seeded.Requests), approvals)
 
 	if err := e.Start(*addr); err != nil {
 		log.Fatalf("server stopped: %v", err)

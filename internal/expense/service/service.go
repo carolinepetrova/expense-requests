@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/carolinepetrova/expense-requests/internal/approval"
 	"github.com/carolinepetrova/expense-requests/internal/client"
 	"github.com/carolinepetrova/expense-requests/internal/expense"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
@@ -20,14 +21,24 @@ type Store interface {
 }
 
 // Service runs the expense request workflow.
+//
+// The routing policy is injected rather than reached for, so switching between
+// single-step and multi-step approval is a decision made once at startup and
+// nothing in here changes.
 type Service struct {
 	store   Store
 	users   user.Directory
 	clients client.Directory
+	spec    approval.Spec[model.Subject]
 }
 
-func New(store Store, users user.Directory, clients client.Directory) *Service {
-	return &Service{store: store, users: users, clients: clients}
+func New(
+	store Store,
+	users user.Directory,
+	clients client.Directory,
+	spec approval.Spec[model.Subject],
+) *Service {
+	return &Service{store: store, users: users, clients: clients, spec: spec}
 }
 
 // CreateRequest starts a draft.
@@ -82,7 +93,7 @@ func (s *Service) SubmitRequest(
 		return expense.RequestView{}, err
 	}
 
-	chain, err := model.Route(subject)
+	chain, err := model.Route(s.spec, subject)
 	if err != nil {
 		return expense.RequestView{}, err
 	}

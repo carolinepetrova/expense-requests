@@ -1,4 +1,4 @@
-.PHONY: install-tools generate tidy build run test web web-build
+.PHONY: install-tools generate tidy build run run-multi-step test web web-build
 
 # go-enum generates the enum constants, parsers and marshallers.
 # The generated *_enum.go files are committed, so this is only needed after
@@ -18,6 +18,11 @@ build:
 
 run:
 	go run ./cmd/server -data ./data -addr :8080
+
+# The optional extension: expenses of $$1,000 or more go to the manager first
+# and then to finance.
+run-multi-step:
+	go run ./cmd/server -data ./data -addr :8080 -multi-step
 
 test:
 	go test ./...
