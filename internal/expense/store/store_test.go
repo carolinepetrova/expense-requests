@@ -11,6 +11,7 @@ import (
 	"github.com/carolinepetrova/expense-requests/internal/expense"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
 	"github.com/carolinepetrova/expense-requests/internal/expense/store"
+	"github.com/carolinepetrova/expense-requests/internal/expense/views"
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
 
@@ -271,7 +272,7 @@ var _ = Describe("Views", func() {
 
 	It("finds a submitted request in its approver's queue", func() {
 		id := carol.ID
-		rows, err := s.Views(ctx, expense.Filter{ApproverID: &id})
+		rows, err := s.Views(ctx, views.Filter{ApproverID: &id})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rows).To(HaveLen(1))
@@ -292,7 +293,7 @@ var _ = Describe("Views", func() {
 
 		for _, who := range []user.User{carol, trent} {
 			id := who.ID
-			rows, err := s.Views(ctx, expense.Filter{ApproverID: &id})
+			rows, err := s.Views(ctx, views.Filter{ApproverID: &id})
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rows).To(BeEmpty(), "%s should have nothing waiting", who.Name)
@@ -301,13 +302,13 @@ var _ = Describe("Views", func() {
 
 	It("filters by status and by a case-insensitive description match", func() {
 		status := model.StatusSubmitted
-		rows, err := s.Views(ctx, expense.Filter{Status: &status, Query: "CHICAGO"})
+		rows, err := s.Views(ctx, views.Filter{Status: &status, Query: "CHICAGO"})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rows).To(HaveLen(1))
 
 		approved := model.StatusApproved
-		rows, err = s.Views(ctx, expense.Filter{Status: &approved})
+		rows, err = s.Views(ctx, views.Filter{Status: &approved})
 
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rows).To(BeEmpty())

@@ -6,9 +6,9 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/carolinepetrova/expense-requests/internal/client"
-	"github.com/carolinepetrova/expense-requests/internal/expense"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
 	"github.com/carolinepetrova/expense-requests/internal/expense/service"
+	"github.com/carolinepetrova/expense-requests/internal/expense/views"
 	"github.com/carolinepetrova/expense-requests/internal/httpctrl"
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
@@ -39,8 +39,8 @@ func NewListClientsHandler(svc *service.Service) echo.HandlerFunc {
 func NewListRequestsHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
 		ctx context.Context, me user.User, in *ListRequestsInput,
-	) ([]expense.RequestSummary, error) {
-		var filter expense.Filter
+	) ([]views.RequestSummary, error) {
+		var filter views.Filter
 
 		if in.Status != "" {
 			status, err := model.ParseStatus(in.Status)
@@ -71,7 +71,7 @@ func NewListRequestsHandler(svc *service.Service) echo.HandlerFunc {
 func NewGetRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
 		ctx context.Context, _ user.User, in *GetRequestInput,
-	) (expense.RequestView, error) {
+	) (views.RequestView, error) {
 		return svc.Request(ctx, in.ID)
 	})
 }
@@ -79,7 +79,7 @@ func NewGetRequestHandler(svc *service.Service) echo.HandlerFunc {
 func NewCreateRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestCreated(func(
 		ctx context.Context, me user.User, in *CreateRequestInput,
-	) (expense.RequestView, error) {
+	) (views.RequestView, error) {
 		return svc.CreateRequest(ctx, &model.CreateRequest{
 			Command: model.Command{Actor: me},
 			Values:  in.Values.toModel(),
@@ -90,7 +90,7 @@ func NewCreateRequestHandler(svc *service.Service) echo.HandlerFunc {
 func NewUpdateValuesHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
 		ctx context.Context, me user.User, in *UpdateValuesInput,
-	) (expense.RequestView, error) {
+	) (views.RequestView, error) {
 		return svc.UpdateValues(ctx, &model.UpdateValues{
 			Command: model.Command{Actor: me},
 			ID:      in.ID,
@@ -102,7 +102,7 @@ func NewUpdateValuesHandler(svc *service.Service) echo.HandlerFunc {
 func NewSubmitRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
 		ctx context.Context, me user.User, in *SubmitRequestInput,
-	) (expense.RequestView, error) {
+	) (views.RequestView, error) {
 		return svc.SubmitRequest(ctx, &model.SubmitRequest{
 			Command: model.Command{Actor: me},
 			ID:      in.ID,
@@ -113,7 +113,7 @@ func NewSubmitRequestHandler(svc *service.Service) echo.HandlerFunc {
 func NewApproveRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
 		ctx context.Context, me user.User, in *DecisionInput,
-	) (expense.RequestView, error) {
+	) (views.RequestView, error) {
 		return svc.ApproveRequest(ctx, &model.ApproveRequest{
 			Command: model.Command{Actor: me},
 			ID:      in.ID,
@@ -125,7 +125,7 @@ func NewApproveRequestHandler(svc *service.Service) echo.HandlerFunc {
 func NewRejectRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
 		ctx context.Context, me user.User, in *DecisionInput,
-	) (expense.RequestView, error) {
+	) (views.RequestView, error) {
 		return svc.RejectRequest(ctx, &model.RejectRequest{
 			Command: model.Command{Actor: me},
 			ID:      in.ID,

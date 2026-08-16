@@ -4,26 +4,31 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/carolinepetrova/expense-requests/internal/expense"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
+	"github.com/carolinepetrova/expense-requests/internal/expense/views"
 )
 
 // Requests is the in-memory store.
 type Requests struct {
-	mu      sync.RWMutex
-	records map[model.ID]model.Record
-	views   map[model.ID]expense.RequestView
-	order   []model.ID
+	mu sync.RWMutex
+
+	// records is the write side — the event log the aggregate is rebuilt from.
+	// projections is the read side, written in the same locked section, so a
+	// reader never sees events that the list does not yet reflect.
+	records     map[model.ID]model.Record
+	projections map[model.ID]views.RequestView
+
+	order []model.ID
 }
 
 func NewRequests(seed []model.Record) *Requests {
 	s := &Requests{
-		records: make(map[model.ID]model.Record, len(seed)),
-		views:   make(map[model.ID]expense.RequestView, len(seed)),
-		order:   make([]model.ID, 0, len(seed)),
+		records:     make(map[model.ID]model.Record, len(seed)),
+		projections: make(map[model.ID]views.RequestView, len(seed)),
+		order:       make([]model.ID, 0, len(seed)),
 	}
 
 	for _, rec := range seed {
@@ -37,7 +42,7 @@ func NewRequests(seed []model.Record) *Requests {
 		s.records[rec.ID] = rec
 		s.order = append(s.order, rec.ID)
 
-		s.views[rec.ID] = expense.Rehydrate(rec).View()
+		s.projections[rec.ID] = expense.Rehydrate(rec).View()
 	}
 	return s
 }
@@ -77,59 +82,38 @@ func (s *Requests) SaveRequest(_ context.Context, r *expense.Request) error {
 	rec.Version = r.Version() + 1
 
 	s.records[r.ID] = rec
-	s.views[r.ID] = r.View()
+	s.projections[r.ID] = r.View()
 
 	return nil
 }
 
-func (s *Requests) View(_ context.Context, id model.ID) (expense.RequestView, error) {
+func (s *Requests) View(_ context.Context, id model.ID) (views.RequestView, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	view, ok := s.views[id]
+	view, ok := s.projections[id]
 	if !ok {
-		return expense.RequestView{}, fmt.Errorf("%w: %s", model.ErrNotFound, id)
+		return views.RequestView{}, fmt.Errorf("%w: %s", model.ErrNotFound, id)
 	}
 	return view, nil
 }
 
 // Views applies the filter to the materialised projections.
 func (s *Requests) Views(
-	_ context.Context, f expense.Filter,
-) ([]expense.RequestSummary, error) {
+	_ context.Context, f views.Filter,
+) ([]views.RequestSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]expense.RequestSummary, 0, len(s.order))
+	out := make([]views.RequestSummary, 0, len(s.order))
 	for _, id := range s.order {
-		if view := s.views[id]; matches(f, view) {
+		if view := s.projections[id]; f.AppliesTo(view) {
 			out = append(out, view.Summary())
 		}
 	}
 
-	slices.SortStableFunc(out, func(a, b expense.RequestSummary) int {
+	slices.SortStableFunc(out, func(a, b views.RequestSummary) int {
 		return b.UpdatedAt.Compare(a.UpdatedAt)
 	})
 	return out, nil
-}
-
-// matches reports whether a projection satisfies every part of the filter.
-// Unset fields match everything, so a zero Filter returns the whole list.
-func matches(f expense.Filter, view expense.RequestView) bool {
-	return wanted(f.Status, &view.Status) &&
-		wanted(f.RequesterID, &view.RequesterID) &&
-		wanted(f.ApproverID, view.ApproverID) &&
-		(f.Query == "" || containsFold(view.Values.Description, f.Query))
-}
-
-// wanted compares an optional filter value against the projection. An unset
-// filter matches anything; a set one needs a value that is both present and
-// equal, which is what makes `?approver=u_carol` skip the drafts that are
-// waiting on nobody.
-func wanted[V comparable](want, got *V) bool {
-	return want == nil || (got != nil && *got == *want)
-}
-
-func containsFold(haystack, needle string) bool {
-	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }

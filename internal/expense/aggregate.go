@@ -7,6 +7,7 @@ import (
 
 	"github.com/carolinepetrova/expense-requests/internal/approval"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
+	"github.com/carolinepetrova/expense-requests/internal/expense/views"
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
 
@@ -18,6 +19,7 @@ type Request struct {
 
 	status    model.Status
 	chain     approval.Chain
+	timeline  []views.TimelineEntry
 	createdAt time.Time
 	updatedAt time.Time
 
@@ -88,6 +90,25 @@ func (r *Request) CurrentApproverID() *user.ID {
 	}
 	id := user.ID(step.ApproverID)
 	return &id
+}
+
+func (r *Request) View() views.RequestView {
+	steps := r.Chain()
+	if steps == nil {
+		steps = approval.Chain{}
+	}
+
+	return views.RequestView{
+		ID:          r.ID,
+		RequesterID: r.RequesterID,
+		Status:      r.status,
+		ApproverID:  r.CurrentApproverID(),
+		Values:      r.Values,
+		Steps:       steps,
+		Timeline:    slices.Clone(r.timeline),
+		CreatedAt:   r.createdAt,
+		UpdatedAt:   r.updatedAt,
+	}
 }
 
 func (r *Request) AuthorizeEdit(actor user.User) error {
@@ -207,6 +228,13 @@ func (r *Request) when(e model.Event) {
 		r.decide(e, approval.StepStatusRejected)
 		r.status = model.StatusRejected
 	}
+
+	r.timeline = append(r.timeline, views.TimelineEntry{
+		Type:    e.Type,
+		At:      e.At,
+		ActorID: e.ActorID,
+		Comment: e.Comment,
+	})
 }
 
 // act authorises a decision and returns the step it applies to.
@@ -232,9 +260,9 @@ func (r *Request) denyChange(actor user.User) error {
 		model.ErrInvalidTransition, r.status)
 }
 
-// decide stamps an outcome onto a step during replay. Events written by this
-// package always carry a step index; ones from the sample data do not, so the
-// current step is used instead.
+// decide stamps an outcome onto a step. Events written by this service always
+// carry the step index; the ones in the sample data do not, so the step that
+// was current at the time is used instead.
 func (r *Request) decide(e model.Event, outcome approval.StepStatus) {
 	i := -1
 	if e.StepIndex != nil {
@@ -242,6 +270,7 @@ func (r *Request) decide(e model.Event, outcome approval.StepStatus) {
 	} else if idx, _, ok := r.chain.Current(); ok {
 		i = idx
 	}
+
 	if i < 0 || i >= len(r.chain) {
 		return
 	}

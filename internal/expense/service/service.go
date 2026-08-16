@@ -9,6 +9,7 @@ import (
 	"github.com/carolinepetrova/expense-requests/internal/client"
 	"github.com/carolinepetrova/expense-requests/internal/expense"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
+	"github.com/carolinepetrova/expense-requests/internal/expense/views"
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
 
@@ -16,8 +17,8 @@ type Store interface {
 	LoadRequest(ctx context.Context, id model.ID) (*expense.Request, error)
 	SaveRequest(ctx context.Context, r *expense.Request) error
 
-	View(ctx context.Context, id model.ID) (expense.RequestView, error)
-	Views(ctx context.Context, f expense.Filter) ([]expense.RequestSummary, error)
+	View(ctx context.Context, id model.ID) (views.RequestView, error)
+	Views(ctx context.Context, f views.Filter) ([]views.RequestSummary, error)
 }
 
 // Service runs the expense request workflow.
@@ -44,7 +45,7 @@ func New(
 // CreateRequest starts a draft.
 func (s *Service) CreateRequest(
 	ctx context.Context, cmd *model.CreateRequest,
-) (expense.RequestView, error) {
+) (views.RequestView, error) {
 	cmd.At = time.Now()
 
 	return s.persist(ctx, expense.New(model.NewID(), cmd))
@@ -53,15 +54,15 @@ func (s *Service) CreateRequest(
 // UpdateValues replaces a draft's values.
 func (s *Service) UpdateValues(
 	ctx context.Context, cmd *model.UpdateValues,
-) (expense.RequestView, error) {
+) (views.RequestView, error) {
 	cmd.At = time.Now()
 
 	r, err := s.store.LoadRequest(ctx, cmd.ID)
 	if err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	if err := r.Update(cmd); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	return s.persist(ctx, r)
 }
@@ -70,36 +71,36 @@ func (s *Service) UpdateValues(
 // resulting chain to the aggregate.
 func (s *Service) SubmitRequest(
 	ctx context.Context, cmd *model.SubmitRequest,
-) (expense.RequestView, error) {
+) (views.RequestView, error) {
 	cmd.At = time.Now()
 
 	r, err := s.store.LoadRequest(ctx, cmd.ID)
 	if err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	if err := r.AuthorizeSubmit(cmd.Actor); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	if err := s.validate(ctx, r.Values); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 
 	subject := model.Subject{Values: r.Values, Requester: cmd.Actor}
 
 	if subject.Manager, err = s.users.Manager(ctx, cmd.Actor.ID); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	if subject.Finance, err = s.users.Finance(ctx); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 
 	chain, err := model.Route(s.spec, subject)
 	if err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 
 	if err := r.Submit(cmd, chain); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	return s.persist(ctx, r)
 }
@@ -108,15 +109,15 @@ func (s *Service) SubmitRequest(
 // the aggregate's decision, not this layer's.
 func (s *Service) ApproveRequest(
 	ctx context.Context, cmd *model.ApproveRequest,
-) (expense.RequestView, error) {
+) (views.RequestView, error) {
 	cmd.At = time.Now()
 
 	r, err := s.store.LoadRequest(ctx, cmd.ID)
 	if err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	if err := r.Approve(cmd); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	return s.persist(ctx, r)
 }
@@ -124,28 +125,28 @@ func (s *Service) ApproveRequest(
 // RejectRequest ends the request.
 func (s *Service) RejectRequest(
 	ctx context.Context, cmd *model.RejectRequest,
-) (expense.RequestView, error) {
+) (views.RequestView, error) {
 	cmd.At = time.Now()
 
 	r, err := s.store.LoadRequest(ctx, cmd.ID)
 	if err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	if err := r.Reject(cmd); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	return s.persist(ctx, r)
 }
 
 // Request returns the detail projection.
-func (s *Service) Request(ctx context.Context, id model.ID) (expense.RequestView, error) {
+func (s *Service) Request(ctx context.Context, id model.ID) (views.RequestView, error) {
 	return s.store.View(ctx, id)
 }
 
 // Requests returns matching summaries, newest activity first.
 func (s *Service) Requests(
-	ctx context.Context, f expense.Filter,
-) ([]expense.RequestSummary, error) {
+	ctx context.Context, f views.Filter,
+) ([]views.RequestSummary, error) {
 	return s.store.Views(ctx, f)
 }
 
@@ -162,9 +163,9 @@ func (s *Service) Users(ctx context.Context) ([]user.User, error) {
 // persist saves the aggregate and returns its projection.
 func (s *Service) persist(
 	ctx context.Context, r *expense.Request,
-) (expense.RequestView, error) {
+) (views.RequestView, error) {
 	if err := s.store.SaveRequest(ctx, r); err != nil {
-		return expense.RequestView{}, err
+		return views.RequestView{}, err
 	}
 	return r.View(), nil
 }
