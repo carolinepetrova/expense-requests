@@ -1,4 +1,4 @@
-.PHONY: install-tools generate tidy build run run-multi-step test web web-build
+.PHONY: install-tools generate tidy lint lint-fix build run run-multi-step test web web-build
 
 # go-enum generates the enum constants, parsers and marshallers.
 # The generated *_enum.go files are committed, so this is only needed after
@@ -6,12 +6,19 @@
 install-tools:
 	go install github.com/abice/go-enum@latest
 	go install github.com/onsi/ginkgo/v2/ginkgo@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0
 
 generate:
 	go generate ./...
 
 tidy:
 	go mod tidy
+
+lint:
+	golangci-lint run
+
+lint-fix:
+	golangci-lint run --fix
 
 build:
 	go build -o bin/server ./cmd/server

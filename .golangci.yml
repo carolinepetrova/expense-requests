@@ -1,0 +1,143 @@
+version: "2"
+
+run:
+  go: "1.25"
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - decorder
+    - dogsled
+    - dupl
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - forcetypeassert
+    - funlen
+    - ginkgolinter
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - goprintffuncname
+    - gosec
+    - govet
+    - grouper
+    - importas
+    - ineffassign
+    - interfacebloat
+    - ireturn
+    - lll
+    - maintidx
+    - misspell
+    - mnd
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nosprintfhostport
+    - prealloc
+    - predeclared
+    - reassign
+    - revive
+    - staticcheck
+    - testableexamples
+    - testpackage
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - whitespace
+
+  settings:
+    revive:
+      rules:
+        - name: argument-limit
+          arguments: [5]
+          severity: warning
+          disabled: false
+        - name: function-result-limit
+          arguments: [3]
+          severity: warning
+          disabled: false
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Ginkgo specs are top-level `var _ = Describe(...)` blocks with shared
+      # fixtures and literal expectations. Every one of these would fire on
+      # every spec file and say nothing about the code under test.
+      - path: _test\.go
+        linters:
+          - dupl
+          - forcetypeassert
+          - funlen
+          - gochecknoglobals
+          - goconst
+          - ireturn
+          - lll
+          - maintidx
+          - mnd
+
+      # Validate is a flat list of independent field rules. Its branch count is
+      # the number of rules the form has, so splitting it to satisfy cyclop
+      # would scatter one readable checklist across several functions.
+      - path: internal/expense/model/validation\.go
+        linters:
+          - cyclop
+
+      # A missing manager and an absent finance approver are ordinary answers,
+      # not failures — routing decides what to do about them. `nil, nil` says
+      # exactly that; a sentinel error would make every caller unwrap a
+      # non-problem.
+      - path: internal/(user/user|client/client)\.go
+        linters:
+          - nilnil
+
+    paths:
+      - .*_enum\.go$
+      - web
+      - tmp
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/carolinepetrova/expense-requests)
+    goimports:
+      local-prefixes:
+        - github.com/carolinepetrova/expense-requests
+  exclusions:
+    generated: lax
+    paths:
+      - .*_enum\.go$
+      - web
+      - tmp

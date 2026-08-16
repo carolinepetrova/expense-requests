@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { approveRequest, getRequest, rejectRequest, submitRequest } from './api'
+import { ApiError, approveRequest, getRequest, rejectRequest, submitRequest } from './api'
 import { canAct, canEdit, money, when } from './rules'
-import type { Event, RequestView, User } from './types'
+import type { RequestView, TimelineEntry, User } from './types'
 
 interface Props {
   me: User
@@ -12,7 +12,7 @@ interface Props {
   onBack: () => void
 }
 
-const said: Record<Event['type'], string> = {
+const said: Record<TimelineEntry['type'], string> = {
   created: 'created this request',
   submitted: 'submitted it for approval',
   stepApproved: 'approved their step',
@@ -42,6 +42,14 @@ export function RequestDetail({ me, names, id, onEdit, onBack }: Props) {
       setComment('')
       setError('')
     } catch (e) {
+      // A conflict means somebody else acted while this page was open. Show
+      // them what actually happened rather than retrying behind their back —
+      // the decision was made against a screen that is now wrong.
+      if (e instanceof ApiError && e.code === 'conflict') {
+        load()
+        setError(e.message)
+        return
+      }
       setError(e instanceof Error ? e.message : 'Something went wrong.')
     }
   }

@@ -17,14 +17,9 @@ import (
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
 
-// Init builds the expense context and mounts its routes.
-//
-// Everything this context needs to assemble itself is decided here, so main
-// only supplies what comes from outside it: the seed data, the two directories
-// it does not own, and which approval policy to run.
 func Init(
 	e *echo.Echo,
-	requests []store.Record,
+	requests []model.Record,
 	users user.Directory,
 	clients client.Directory,
 	spec approval.Spec[model.Subject],

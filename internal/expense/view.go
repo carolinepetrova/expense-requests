@@ -1,13 +1,19 @@
 package expense
 
 import (
-	"slices"
 	"time"
 
 	"github.com/carolinepetrova/expense-requests/internal/approval"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
+
+type TimelineEntry struct {
+	Type    model.EventType `json:"type"`
+	At      time.Time       `json:"at"`
+	ActorID user.ID         `json:"actorId"`
+	Comment string          `json:"comment,omitempty"`
+}
 
 // RequestView is the detail projection, kept up to date by the aggregate as
 // events apply and written by the store alongside them.
@@ -18,17 +24,14 @@ type RequestView struct {
 
 	ApproverID *user.ID `json:"approverId"`
 
-	Values   model.Values   `json:"values"`
-	Steps    approval.Chain `json:"steps"`
-	Timeline []model.Event  `json:"timeline"`
+	Values   model.Values    `json:"values"`
+	Steps    approval.Chain  `json:"steps"`
+	Timeline []TimelineEntry `json:"timeline"`
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// RequestSummary is the list row: a subset of the detail projection, not a
-// separate one. In a database this is the same table with fewer columns
-// selected, which is why only the view is stored.
 type RequestSummary struct {
 	ID          model.ID     `json:"id"`
 	RequesterID user.ID      `json:"requesterId"`
@@ -64,21 +67,20 @@ type Filter struct {
 	Query string
 }
 
-// View returns the projection of this request, for the store to persist
-// alongside the events.
-//
-// The two slices are never nil. A draft has no chain yet, and a nil slice
-// marshals to null rather than [], which every consumer then has to guard
-// against — so they are normalised here instead.
 func (r *Request) View() RequestView {
 	steps := r.Chain()
 	if steps == nil {
 		steps = approval.Chain{}
 	}
 
-	timeline := slices.Clone(r.Events)
-	if timeline == nil {
-		timeline = []model.Event{}
+	timeline := make([]TimelineEntry, 0, len(r.Events))
+	for _, e := range r.Events {
+		timeline = append(timeline, TimelineEntry{
+			Type:    e.Type,
+			At:      e.At,
+			ActorID: e.ActorID,
+			Comment: e.Comment,
+		})
 	}
 
 	return RequestView{

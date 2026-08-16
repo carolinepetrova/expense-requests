@@ -51,40 +51,46 @@ type Spec[T any] struct {
 func Compile[T any](s Spec[T], subject T) (Chain, error) {
 	requester := s.Requester(subject)
 
-	var chain Chain
+	chain := make(Chain, 0, len(s.Rules))
 	for _, rule := range s.Rules {
 		if !rule.When(subject) {
 			continue
 		}
 
-		name, who := rule.Name, Approver("")
-		if id, ok := rule.Who(subject); ok {
-			who = id
-		}
-
-		if who == "" || who == requester {
-			id, ok := s.Fallback(subject)
-			if !ok || id == requester {
-				continue
-			}
-			name, who = s.FallbackName, id
-		}
-
-		if n := len(chain); n > 0 && chain[n-1].ApproverID == who {
+		step, ok := s.resolve(rule, subject, requester)
+		if !ok {
 			continue
 		}
 
-		chain = append(chain, Step{
-			Name:       name,
-			ApproverID: who,
-			Status:     StepStatusPending,
-		})
+		// Two rules that land on the same person are one approval, not two:
+		// nobody should be asked to sign the same request twice in a row.
+		if n := len(chain); n > 0 && chain[n-1].ApproverID == step.ApproverID {
+			continue
+		}
+		chain = append(chain, step)
 	}
 
 	if len(chain) == 0 {
 		return nil, ErrNoEligibleApprover
 	}
 	return chain, nil
+}
+
+// resolve turns one matching rule into the step it contributes.
+//
+// A rule that cannot name anybody, or that names the requester, falls back to
+// the spec's fallback approver; if that is also the requester the rule drops
+// out entirely, which is how a chain ends up empty.
+func (s Spec[T]) resolve(rule Rule[T], subject T, requester Approver) (Step, bool) {
+	if who, ok := rule.Who(subject); ok && who != "" && who != requester {
+		return Step{Name: rule.Name, ApproverID: who, Status: StepStatusPending}, true
+	}
+
+	who, ok := s.Fallback(subject)
+	if !ok || who == requester {
+		return Step{}, false
+	}
+	return Step{Name: s.FallbackName, ApproverID: who, Status: StepStatusPending}, true
 }
 
 // Current returns the step awaiting a decision.

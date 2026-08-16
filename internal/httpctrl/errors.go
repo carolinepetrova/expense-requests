@@ -65,6 +65,9 @@ func Translate(err error) (int, ErrorResponse) {
 
 	case errors.Is(err, model.ErrInvalidTransition):
 		return http.StatusConflict, body("invalid_transition", err.Error())
+	case errors.Is(err, model.ErrConflict):
+		return http.StatusConflict, body("conflict",
+			"Somebody else changed this request. Reload and try again.")
 
 	// Nobody but the requester could approve this, so it cannot be submitted
 	// at all. A conflict rather than a validation error, because no edit to

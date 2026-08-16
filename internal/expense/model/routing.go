@@ -5,74 +5,53 @@ import (
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
 
-// Step names. They appear in the history and in the UI's progress strip, so
-// they name the role the person acted in rather than the rule that produced
-// them.
 const (
-	RoleManager = "Manager"
-	RoleFinance = "Finance"
-
-	// RoleApprover labels a step reconstructed from sample data, which records
-	// an approver but not the role they were acting in.
+	RoleManager  = "Manager"
+	RoleFinance  = "Finance"
 	RoleApprover = "Approver"
 )
 
-// Subject is everything the routing rules need, resolved in advance.
-//
-// The rules are pure functions of this struct: no directory, no context, no
-// error handling. Every lookup happens once in the service, where I/O belongs,
-// which also means routing can be tested with a struct literal and no fakes.
 type Subject struct {
 	Values    Values
 	Requester user.User
-
-	// Manager is the requester's manager, nil when they have none or the
-	// managerId points at somebody who has left.
-	Manager *user.User
-
-	// Finance is whoever holds the finance role, nil when nobody does.
-	Finance *user.User
+	Manager   *user.User
+	Finance   *user.User
 }
 
-// SingleStepSpec is the policy the exercise specifies.
-//
-// The two predicates are mutually exclusive, so exactly one step compiles: an
-// expense goes to the requester's manager, or, at $1,000 and above, straight
-// to finance instead.
-var SingleStepSpec = approval.Spec[Subject]{
-	Rules: []approval.Rule[Subject]{
-		{Name: RoleManager, When: amountUnder(ThresholdCents), Who: resolveManager},
-		{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
-	},
+// The two specs are built on each call rather than kept as package variables.
+// A Spec holds a slice of rules, and a caller that appended to a shared one
+// would silently change how every later request is routed.
 
-	// Anything that cannot be staffed falls to finance, and nobody ever
-	// approves their own request. Both behaviours live in the engine; this
-	// only says who the fallback is.
-	Fallback:     resolveFinance,
-	FallbackName: RoleFinance,
+// SingleStepSpec is the routing the exercise asks for: one approver, chosen by
+// the amount.
+func SingleStepSpec() approval.Spec[Subject] {
+	return approval.Spec[Subject]{
+		Rules: []approval.Rule[Subject]{
+			{Name: RoleManager, When: amountUnder(ThresholdCents), Who: resolveManager},
+			{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
+		},
+		Fallback:     resolveFinance,
+		FallbackName: RoleFinance,
 
-	Requester: requesterOf,
+		Requester: requesterOf,
+	}
 }
 
-// MultiStepSpec routes large expenses through both stages: the manager always
-// sees it, and finance sees it as well once it reaches $1,000.
-//
-// This is the whole of multi-step approval. The manager rule fires always
-// rather than only below the threshold, so two stages apply instead of one —
-// no other file changes. Everything that makes a chain work is already in the
-// approval engine: ordering, never routing to the requester, falling back when
-// a stage cannot be staffed, and collapsing a stage that resolves to the same
-// person as the one before it.
-var MultiStepSpec = approval.Spec[Subject]{
-	Rules: []approval.Rule[Subject]{
-		{Name: RoleManager, When: always, Who: resolveManager},
-		{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
-	},
+// MultiStepSpec is the optional extension: everything goes to the manager, and
+// anything at or above the threshold then goes to finance as well. Only the
+// first rule's condition differs from the single-step table.
+func MultiStepSpec() approval.Spec[Subject] {
+	return approval.Spec[Subject]{
+		Rules: []approval.Rule[Subject]{
+			{Name: RoleManager, When: always, Who: resolveManager},
+			{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
+		},
 
-	Fallback:     resolveFinance,
-	FallbackName: RoleFinance,
+		Fallback:     resolveFinance,
+		FallbackName: RoleFinance,
 
-	Requester: requesterOf,
+		Requester: requesterOf,
+	}
 }
 
 // Route compiles the approval chain for a subject, or reports that the request

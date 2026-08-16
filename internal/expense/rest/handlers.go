@@ -3,25 +3,26 @@ package rest
 import (
 	"context"
 
+	"github.com/labstack/echo/v4"
+
 	"github.com/carolinepetrova/expense-requests/internal/client"
 	"github.com/carolinepetrova/expense-requests/internal/expense"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
 	"github.com/carolinepetrova/expense-requests/internal/expense/service"
 	"github.com/carolinepetrova/expense-requests/internal/httpctrl"
 	"github.com/carolinepetrova/expense-requests/internal/user"
-	"github.com/labstack/echo/v4"
 )
 
 func NewListUsersHandler(svc *service.Service) echo.HandlerFunc {
-	return httpctrl.Response(func(ctx context.Context) ([]model.UserResponse, error) {
+	return httpctrl.Response(func(ctx context.Context) ([]UserResponse, error) {
 		users, err := svc.Users(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		out := make([]model.UserResponse, 0, len(users))
+		out := make([]UserResponse, 0, len(users))
 		for _, u := range users {
-			out = append(out, model.UserResponse{
+			out = append(out, UserResponse{
 				ID: u.ID, Name: u.Name, Role: string(u.Role), ManagerID: u.ManagerID,
 			})
 		}
@@ -37,7 +38,7 @@ func NewListClientsHandler(svc *service.Service) echo.HandlerFunc {
 
 func NewListRequestsHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
-		ctx context.Context, me user.User, in *model.ListRequestsInput,
+		ctx context.Context, me user.User, in *ListRequestsInput,
 	) ([]expense.RequestSummary, error) {
 		var filter expense.Filter
 
@@ -69,7 +70,7 @@ func NewListRequestsHandler(svc *service.Service) echo.HandlerFunc {
 
 func NewGetRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
-		ctx context.Context, _ user.User, in *model.GetRequestInput,
+		ctx context.Context, _ user.User, in *GetRequestInput,
 	) (expense.RequestView, error) {
 		return svc.Request(ctx, in.ID)
 	})
@@ -77,30 +78,30 @@ func NewGetRequestHandler(svc *service.Service) echo.HandlerFunc {
 
 func NewCreateRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestCreated(func(
-		ctx context.Context, me user.User, in *model.CreateRequestInput,
+		ctx context.Context, me user.User, in *CreateRequestInput,
 	) (expense.RequestView, error) {
 		return svc.CreateRequest(ctx, &model.CreateRequest{
 			Command: model.Command{Actor: me},
-			Values:  in.Values.ToModel(),
+			Values:  in.Values.toModel(),
 		})
 	})
 }
 
 func NewUpdateValuesHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
-		ctx context.Context, me user.User, in *model.UpdateValuesInput,
+		ctx context.Context, me user.User, in *UpdateValuesInput,
 	) (expense.RequestView, error) {
 		return svc.UpdateValues(ctx, &model.UpdateValues{
 			Command: model.Command{Actor: me},
 			ID:      in.ID,
-			Values:  in.Values.ToModel(),
+			Values:  in.Values.toModel(),
 		})
 	})
 }
 
 func NewSubmitRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
-		ctx context.Context, me user.User, in *model.SubmitRequestInput,
+		ctx context.Context, me user.User, in *SubmitRequestInput,
 	) (expense.RequestView, error) {
 		return svc.SubmitRequest(ctx, &model.SubmitRequest{
 			Command: model.Command{Actor: me},
@@ -111,7 +112,7 @@ func NewSubmitRequestHandler(svc *service.Service) echo.HandlerFunc {
 
 func NewApproveRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
-		ctx context.Context, me user.User, in *model.DecisionInput,
+		ctx context.Context, me user.User, in *DecisionInput,
 	) (expense.RequestView, error) {
 		return svc.ApproveRequest(ctx, &model.ApproveRequest{
 			Command: model.Command{Actor: me},
@@ -123,7 +124,7 @@ func NewApproveRequestHandler(svc *service.Service) echo.HandlerFunc {
 
 func NewRejectRequestHandler(svc *service.Service) echo.HandlerFunc {
 	return httpctrl.RequestResponse(func(
-		ctx context.Context, me user.User, in *model.DecisionInput,
+		ctx context.Context, me user.User, in *DecisionInput,
 	) (expense.RequestView, error) {
 		return svc.RejectRequest(ctx, &model.RejectRequest{
 			Command: model.Command{Actor: me},

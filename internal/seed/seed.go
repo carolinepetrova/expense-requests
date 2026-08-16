@@ -15,23 +15,22 @@ import (
 
 	"github.com/carolinepetrova/expense-requests/internal/client"
 	"github.com/carolinepetrova/expense-requests/internal/expense/model"
-	"github.com/carolinepetrova/expense-requests/internal/expense/store"
 	"github.com/carolinepetrova/expense-requests/internal/user"
 )
 
 type Data struct {
 	Users    []user.User
 	Clients  []client.Client
-	Requests []store.Record
+	Requests []model.Record
 }
 
 // userFile mirrors data/users.json. It exists so the domain's User does not
 // have to carry JSON tags for a format only this package reads.
 type userFile struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
 	Role      user.Role `json:"role"`
-	ManagerID *user.ID `json:"managerId"`
+	ManagerID *user.ID  `json:"managerId"`
 }
 
 // requestFile mirrors data/requests.json. Values and Events decode straight
@@ -86,7 +85,7 @@ func Load(dir string) (Data, error) {
 				r.ID, r.RequesterID)
 		}
 
-		data.Requests = append(data.Requests, store.Record{
+		data.Requests = append(data.Requests, model.Record{
 			ID:          r.ID,
 			RequesterID: r.RequesterID,
 			Values:      r.Values,

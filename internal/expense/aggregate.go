@@ -21,6 +21,10 @@ type Request struct {
 	createdAt time.Time
 	updatedAt time.Time
 
+	// version is the version this request was loaded at. A new request is at
+	// 0; the store compares it against what is stored before writing.
+	version int
+
 	newEvents []model.Event
 }
 
@@ -40,13 +44,14 @@ func New(id model.ID, cmd *model.CreateRequest) *Request {
 // Rehydrate rebuilds a request from storage. This is the only fold on the
 // write path, and there is none at all on the read path — queries go to the
 // projections instead.
-func Rehydrate(id model.ID, requester user.ID, v model.Values, events []model.Event) *Request {
+func Rehydrate(rec model.Record) *Request {
 	r := &Request{
-		ID:          id,
-		RequesterID: requester,
-		Values:      v,
-		Events:      slices.Clone(events),
+		ID:          rec.ID,
+		RequesterID: rec.RequesterID,
+		Values:      rec.Values,
+		Events:      slices.Clone(rec.Events),
 		status:      model.StatusDraft,
+		version:     rec.Version,
 	}
 	for _, e := range r.Events {
 		r.when(e)
@@ -61,6 +66,18 @@ func (r *Request) Chain() approval.Chain    { return slices.Clone(r.chain) }
 func (r *Request) CreatedAt() time.Time     { return r.createdAt }
 func (r *Request) UpdatedAt() time.Time     { return r.updatedAt }
 func (r *Request) NewEvents() []model.Event { return r.newEvents }
+
+func (r *Request) Version() int { return r.version }
+
+func (r *Request) Record() model.Record {
+	return model.Record{
+		ID:          r.ID,
+		RequesterID: r.RequesterID,
+		Values:      r.Values,
+		Events:      slices.Clone(r.Events),
+		Version:     r.version,
+	}
+}
 
 // CurrentApproverID is whose decision is outstanding, or nil when none is.
 // A convenience for list views that have no interest in the chain.
@@ -164,12 +181,6 @@ func (r *Request) Apply(e model.Event) {
 	r.when(e)
 }
 
-// when is the fold: the only place status and the chain move. It runs
-// identically whether the event has just been created or is being replayed
-// from storage, which is what keeps a rehydrated request identical to the one
-// that produced the events.
-//
-// Nothing here validates. These are facts that already happened.
 func (r *Request) when(e model.Event) {
 	if r.createdAt.IsZero() {
 		r.createdAt = e.At

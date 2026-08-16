@@ -26,9 +26,9 @@ func main() {
 
 	// The exercise asks for one approver; multi-step is the optional extension,
 	// and switching between them is a different rule table and nothing else.
-	spec := model.SingleStepSpec
+	spec := model.SingleStepSpec()
 	if *multiStep {
-		spec = model.MultiStepSpec
+		spec = model.MultiStepSpec()
 	}
 
 	// Seed data is read from disk rather than embedded so it can be edited and
@@ -38,23 +38,7 @@ func main() {
 		log.Fatalf("load seed data: %v", err)
 	}
 
-	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
-	e.HTTPErrorHandler = httpctrl.ErrorHandler
-
-	e.Use(
-		middleware.Recover(),
-		middleware.Logger(),
-
-		// The UI is served by Vite on its own port during development, and it
-		// has to be able to send the header that identifies the caller.
-		middleware.CORSWithConfig(middleware.CORSConfig{
-			AllowOrigins: []string{*webOrigin},
-			AllowHeaders: []string{echo.HeaderContentType, httpctrl.HeaderUserID},
-			AllowMethods: []string{"GET", "POST", "PATCH", "OPTIONS"},
-		}),
-	)
+	e := newServer(*webOrigin)
 
 	expenseinit.Init(
 		e,
@@ -75,4 +59,51 @@ func main() {
 	if err := e.Start(*addr); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}
+}
+
+// newServer builds the echo instance and everything that is true of every
+// route: how errors become responses, what happens on a panic, what gets
+// logged, and who is allowed to call the API.
+func newServer(webOrigin string) *echo.Echo {
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
+	e.HTTPErrorHandler = httpctrl.ErrorHandler
+
+	e.Use(
+		middleware.Recover(),
+
+		// One line per request, so the routing and authorization decisions can
+		// be followed while clicking through the UI.
+		middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+			LogMethod: true,
+			LogURI:    true,
+			LogStatus: true,
+			LogError:  true,
+			LogValuesFunc: func(_ echo.Context, v middleware.RequestLoggerValues) error {
+				log.Printf("%s %s -> %d%s", v.Method, v.URI, v.Status, because(v.Error))
+				return nil
+			},
+		}),
+
+		// The UI is served by Vite on its own port during development, and it
+		// has to be able to send the header that identifies the caller.
+		middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins: []string{webOrigin},
+			AllowHeaders: []string{echo.HeaderContentType, httpctrl.HeaderUserID},
+			AllowMethods: []string{"GET", "POST", "PATCH", "OPTIONS"},
+		}),
+	)
+
+	return e
+}
+
+// because renders the reason a request failed, and nothing at all when it did
+// not. The logger has to return nil either way — a log line is not a place to
+// handle the error, only to record it.
+func because(err error) string {
+	if err == nil {
+		return ""
+	}
+	return ": " + err.Error()
 }

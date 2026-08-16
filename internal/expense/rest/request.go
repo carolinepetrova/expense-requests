@@ -1,7 +1,7 @@
-package model
+package rest
 
 import (
-	"github.com/carolinepetrova/expense-requests/internal/user"
+	"github.com/carolinepetrova/expense-requests/internal/expense/model"
 )
 
 type ValuesInput struct {
@@ -14,9 +14,9 @@ type ValuesInput struct {
 	OtherReason             *string `json:"otherReason"`
 }
 
-func (in ValuesInput) ToModel() Values {
-	return Values{
-		Type:                    Type(in.ExpenseType),
+func (in ValuesInput) toModel() model.Values {
+	return model.Values{
+		Type:                    model.Type(in.ExpenseType),
 		AmountCents:             in.AmountCents,
 		Description:             in.Description,
 		Billable:                in.Billable,
@@ -31,37 +31,25 @@ type CreateRequestInput struct {
 }
 
 type UpdateValuesInput struct {
-	ID     ID          `param:"id"`
+	ID     model.ID    `param:"id"`
 	Values ValuesInput `json:"values"`
 }
 
 type SubmitRequestInput struct {
-	ID ID `param:"id"`
+	ID model.ID `param:"id"`
 }
 
 type DecisionInput struct {
-	ID      ID     `param:"id"`
-	Comment string `json:"comment"`
+	ID      model.ID `param:"id"`
+	Comment string   `json:"comment"`
 }
 
 type GetRequestInput struct {
-	ID ID `param:"id"`
+	ID model.ID `param:"id"`
 }
 
-// ListRequestsInput is the filter bar.
-//
-// Scope is a word rather than a user id, so nobody can ask for somebody else's
-// queue by editing a query string — it is resolved against the caller.
 type ListRequestsInput struct {
 	Status string `query:"status"`
 	Scope  string `query:"scope"`
 	Query  string `query:"q"`
-}
-
-// UserResponse is the picker's payload. It stands in for a login screen.
-type UserResponse struct {
-	ID        user.ID  `json:"id"`
-	Name      string   `json:"name"`
-	Role      string   `json:"role"`
-	ManagerID *user.ID `json:"managerId"`
 }

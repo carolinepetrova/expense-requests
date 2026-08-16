@@ -44,7 +44,9 @@ export interface Step {
   actedAt?: string | null
 }
 
-export interface Event {
+/** One line of history. The server sends only these four fields — the write
+ *  side's step indexes and compiled chain stay on the server. */
+export interface TimelineEntry {
   type: 'created' | 'submitted' | 'stepApproved' | 'approved' | 'rejected'
   at: string
   actorId: string
@@ -58,7 +60,7 @@ export interface RequestView {
   approverId: string | null
   values: Values
   steps: Step[]
-  timeline: Event[]
+  timeline: TimelineEntry[]
   createdAt: string
   updatedAt: string
 }

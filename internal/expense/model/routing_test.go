@@ -80,7 +80,7 @@ var _ = Describe("Route", func() {
 	})
 
 	Describe("the single-step policy the exercise specifies", func() {
-		BeforeEach(func() { spec = model.SingleStepSpec })
+		BeforeEach(func() { spec = model.SingleStepSpec() })
 
 		Context("when somebody with a manager claims less than $1,000", func() {
 			BeforeEach(func() { subject = subjectOf(alice, 45_000) })
@@ -162,7 +162,7 @@ var _ = Describe("Route", func() {
 	// Multi-step is the optional extension, and the only difference is that the
 	// manager rule fires always rather than only below the threshold.
 	Describe("the multi-step policy", func() {
-		BeforeEach(func() { spec = model.MultiStepSpec })
+		BeforeEach(func() { spec = model.MultiStepSpec() })
 
 		Context("when the amount is below the threshold", func() {
 			BeforeEach(func() { subject = subjectOf(alice, 45_000) })

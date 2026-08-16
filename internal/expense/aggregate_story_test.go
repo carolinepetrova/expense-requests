@@ -35,11 +35,19 @@ func travel(amountCents int64) model.Values {
 	}
 }
 
+// chainOf builds the chain the service would have compiled, naming each step
+// the way the routing rules do — not after the person's role, so that a change
+// to the step names is caught here too.
 func chainOf(approvers ...user.User) approval.Chain {
 	chain := make(approval.Chain, 0, len(approvers))
 	for _, a := range approvers {
+		name := model.RoleManager
+		if a.Role == user.RoleFinance {
+			name = model.RoleFinance
+		}
+
 		chain = append(chain, approval.Step{
-			Name:       string(a.Role),
+			Name:       name,
 			ApproverID: approval.Approver(a.ID),
 			Status:     approval.StepStatusPending,
 		})
@@ -234,7 +242,7 @@ var _ = Describe("A request that gets approved", Ordered, ContinueOnFailure, fun
 	// the latest action" structural rather than a rule somebody has to
 	// remember. If the fold and the commands ever disagreed, it fails here.
 	It("replays from its own events to exactly the same state", func() {
-		replayed := expense.Rehydrate(r.ID, r.RequesterID, r.Values, r.Events)
+		replayed := expense.Rehydrate(r.Record())
 
 		Expect(replayed.Status()).To(Equal(r.Status()))
 		Expect(replayed.Chain()).To(Equal(r.Chain()))
@@ -311,7 +319,7 @@ var _ = Describe("A request that gets rejected part way along", Ordered, Continu
 	})
 
 	It("replays from its own events to exactly the same state", func() {
-		replayed := expense.Rehydrate(r.ID, r.RequesterID, r.Values, r.Events)
+		replayed := expense.Rehydrate(r.Record())
 
 		Expect(replayed.Status()).To(Equal(r.Status()))
 		Expect(replayed.Chain()).To(Equal(r.Chain()))
@@ -335,7 +343,9 @@ var _ = Describe("A request loaded from the sample data", Ordered, ContinueOnFai
 	}
 
 	It("reads an approver without steps as a chain of one", func() {
-		r = expense.Rehydrate(requestID, alice.ID, travel(4_200), seeded)
+		r = expense.Rehydrate(model.Record{
+			ID: requestID, RequesterID: alice.ID, Values: travel(4_200), Events: seeded,
+		})
 
 		Expect(r.Status()).To(Equal(model.StatusSubmitted))
 		Expect(r.Chain()).To(HaveLen(1))
@@ -361,11 +371,12 @@ var _ = Describe("A request loaded from the sample data", Ordered, ContinueOnFai
 	})
 
 	It("resolves a decision that carries no step index", func() {
-		replayed := expense.Rehydrate(requestID, alice.ID, travel(4_200),
-			append(seeded, model.Event{
+		replayed := expense.Rehydrate(model.Record{
+			ID: requestID, RequesterID: alice.ID, Values: travel(4_200),
+			Events: append(seeded, model.Event{
 				Type: model.EventTypeApproved, At: at(2), ActorID: carol.ID,
 			}),
-		)
+		})
 
 		Expect(replayed.Status()).To(Equal(model.StatusApproved))
 		Expect(replayed.Chain()[0].Status).To(Equal(approval.StepStatusApproved))
