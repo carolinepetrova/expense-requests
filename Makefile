@@ -1,4 +1,16 @@
-.PHONY: install-tools generate tidy lint lint-fix build run run-multi-step test web web-build
+.PHONY: install-tools generate tidy lint lint-fix build run run-multi-step test \
+	web web-build docker docker-multi-step
+
+# Everything in one container, API and UI on :8080. Needs neither Go nor Node
+# installed — this is the way to run it if you have neither.
+docker:
+	docker build -t expense-requests .
+	docker run --rm -p 8080:8080 expense-requests
+
+docker-multi-step:
+	docker build -t expense-requests .
+	docker run --rm -p 8080:8080 expense-requests -multi-step
+
 
 # go-enum generates the enum constants, parsers and marshallers.
 # The generated *_enum.go files are committed, so this is only needed after

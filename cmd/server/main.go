@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -19,6 +20,9 @@ func main() {
 	dataDir := flag.String("data", "./data", "directory holding the seed JSON")
 	addr := flag.String("addr", ":8080", "listen address")
 	webOrigin := flag.String("web-origin", "http://localhost:5173", "origin allowed to call the API")
+	webDir := flag.String("web-dir", "",
+		"directory of the built frontend to serve at /; empty means API only, "+
+			"which is what you want when Vite is serving the UI")
 	multiStep := flag.Bool("multi-step", false,
 		"route expenses of $1,000 or more through the manager and then finance, "+
 			"instead of straight to finance")
@@ -47,6 +51,10 @@ func main() {
 		client.NewMemory(seeded.Clients),
 		spec,
 	)
+
+	if *webDir != "" {
+		serveUI(e, *webDir)
+	}
 
 	approvals := "single-step"
 	if *multiStep {
@@ -96,6 +104,23 @@ func newServer(webOrigin string) *echo.Echo {
 	)
 
 	return e
+}
+
+// serveUI serves the built frontend from the same origin as the API, so the
+// whole thing runs on one port with no CORS involved. Only the container does
+// this — in development Vite serves the UI and proxies nothing.
+//
+// HTML5 mode falls back to index.html for paths that are not files, so a
+// refresh on a deep link loads the app instead of a 404.
+func serveUI(e *echo.Echo, dir string) {
+	e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
+		Root:  dir,
+		Index: "index.html",
+		HTML5: true,
+		Skipper: func(c echo.Context) bool {
+			return strings.HasPrefix(c.Request().URL.Path, "/api")
+		},
+	}))
 }
 
 // because renders the reason a request failed, and nothing at all when it did

@@ -1,0 +1,9 @@
+# Keep the build context small, and keep host-built artefacts out of the image
+# — node_modules in particular holds platform-specific binaries.
+.git
+.idea
+.vscode
+bin
+web/node_modules
+web/dist
+NOTES.md
