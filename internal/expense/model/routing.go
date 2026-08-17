@@ -28,7 +28,11 @@ func SingleStepSpec() approval.Spec[Subject] {
 	return approval.Spec[Subject]{
 		Rules: []approval.Rule[Subject]{
 			{Name: RoleManager, When: amountUnder(ThresholdCents), Who: resolveManager},
-			{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
+			{
+				Name: RoleFinance, When: amountAtLeast(ThresholdCents),
+				Who:      resolveFinance,
+				Required: true,
+			},
 		},
 		Fallback:     resolveFinance,
 		FallbackName: RoleFinance,
@@ -44,7 +48,11 @@ func MultiStepSpec() approval.Spec[Subject] {
 	return approval.Spec[Subject]{
 		Rules: []approval.Rule[Subject]{
 			{Name: RoleManager, When: always, Who: resolveManager},
-			{Name: RoleFinance, When: amountAtLeast(ThresholdCents), Who: resolveFinance},
+			{
+				Name: RoleFinance, When: amountAtLeast(ThresholdCents),
+				Who:      resolveFinance,
+				Required: true,
+			},
 		},
 
 		Fallback:     resolveFinance,

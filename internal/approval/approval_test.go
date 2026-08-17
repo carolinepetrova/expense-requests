@@ -265,6 +265,57 @@ var _ = Describe("Compile", func() {
 			})
 		})
 	})
+
+	// An optional stage that cannot be staffed drops out, and the chain carries
+	// on without it. That is wrong for a stage that exists to constrain
+	// somebody: if the person who would have to approve is the person asking,
+	// dropping the stage is exactly the case the stage was there for.
+	Describe("a spec with a required stage", func() {
+		BeforeEach(func() {
+			spec = specOf(
+				approval.Rule[subject]{Name: "Manager", When: always, Who: manager},
+				approval.Rule[subject]{
+					Name: "Finance", When: atLeast(threshold), Who: finance,
+					Required: true,
+				},
+			)
+			subj = subject{
+				amount: 150_000, requester: "trent", manager: "dana", finance: "trent",
+			}
+		})
+
+		Context("when the required stage would fall to the requester", func() {
+			It("refuses, even though another stage could be staffed", func() {
+				Expect(err).To(MatchError(approval.ErrNoEligibleApprover))
+				Expect(chain).To(BeNil())
+			})
+
+			It("says which stage could not be filled", func() {
+				Expect(err).To(MatchError(ContainSubstring("Finance")))
+			})
+		})
+
+		Context("when the required stage does not fire at all", func() {
+			BeforeEach(func() { subj.amount = 45_000 })
+
+			It("is not required, because a stage that never applies constrains nobody", func() {
+				Expect(err).NotTo(HaveOccurred())
+				expectChain(chain, wantStep{"Manager", "dana"})
+			})
+		})
+
+		Context("when the required stage can be staffed", func() {
+			BeforeEach(func() { subj.requester = "bob" })
+
+			It("behaves like any other stage", func() {
+				Expect(err).NotTo(HaveOccurred())
+				expectChain(chain,
+					wantStep{"Manager", "dana"},
+					wantStep{"Finance", "trent"},
+				)
+			})
+		})
+	})
 })
 
 var _ = Describe("Chain", func() {

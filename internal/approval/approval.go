@@ -38,6 +38,8 @@ type Rule[T any] struct {
 	Name string
 	When func(T) bool
 	Who  func(T) (Approver, bool)
+
+	Required bool
 }
 
 // Spec is a complete routing policy for subject type T.
@@ -59,6 +61,10 @@ func Compile[T any](s Spec[T], subject T) (Chain, error) {
 
 		step, ok := s.resolve(rule, subject, requester)
 		if !ok {
+			if rule.Required {
+				return nil, fmt.Errorf("%w: the %s step needs somebody who is not the requester",
+					ErrNoEligibleApprover, rule.Name)
+			}
 			continue
 		}
 
@@ -79,8 +85,8 @@ func Compile[T any](s Spec[T], subject T) (Chain, error) {
 // resolve turns one matching rule into the step it contributes.
 //
 // A rule that cannot name anybody, or that names the requester, falls back to
-// the spec's fallback approver; if that is also the requester the rule drops
-// out entirely, which is how a chain ends up empty.
+// the spec's fallback approver. If that is the requester too, the rule cannot
+// be filled — and what happens next is up to Rule.Required.
 func (s Spec[T]) resolve(rule Rule[T], subject T, requester Approver) (Step, bool) {
 	if who, ok := rule.Who(subject); ok && who != "" && who != requester {
 		return Step{Name: rule.Name, ApproverID: who, Status: StepStatusPending}, true

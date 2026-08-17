@@ -206,12 +206,22 @@ var _ = Describe("Route", func() {
 			})
 		})
 
-		// The finance stage would be the requester, so it is dropped — but the
-		// manager stage still covers the request, so this is not a refusal.
+		// The finance stage is required, so it cannot quietly drop out. Leaving
+		// the manager stage to stand alone would let the one person finance is
+		// meant to check approve their own large expense through their manager.
 		Context("when finance makes a large claim", func() {
 			BeforeEach(func() { subject = subjectOf(trent, 150_000) })
 
-			It("keeps only the manager stage", func() {
+			It("is refused, even though the manager stage could be staffed", func() {
+				Expect(err).To(MatchError(approval.ErrNoEligibleApprover))
+				Expect(chain).To(BeNil())
+			})
+		})
+
+		Context("when finance makes a small claim", func() {
+			BeforeEach(func() { subject = subjectOf(trent, 45_000) })
+
+			It("goes to their manager, because the finance stage never fires", func() {
 				Expect(err).NotTo(HaveOccurred())
 				expectChain(chain, wantStep{model.RoleManager, peggy.ID})
 			})
